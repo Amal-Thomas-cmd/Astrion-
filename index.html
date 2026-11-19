@@ -101,6 +101,7 @@ footer{padding:30px 0;border-top:1px solid var(--line);color:var(--muted);font-s
   <p id="galleryLightboxCaption"></p>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script>
 const toggle=document.getElementById('menuToggle'),links=document.getElementById('navLinks');
 const lightbox=document.getElementById('galleryLightbox'),lightboxImage=document.getElementById('galleryLightboxImage'),lightboxCaption=document.getElementById('galleryLightboxCaption');
@@ -114,5 +115,64 @@ links.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{links.cla
 // Edition selection: smoothly scroll to the downloads section only. The visitor starts a download by clicking its download button there.
 document.querySelectorAll('.edition-select').forEach(button=>button.addEventListener('click',event=>{event.preventDefault();const target=document.getElementById('resources');if(target)target.scrollIntoView({behavior:'smooth',block:'start'});}));
 if('IntersectionObserver' in window){const observer=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('show');observer.unobserve(e.target)}}),{threshold:.12});document.querySelectorAll('.reveal').forEach(el=>observer.observe(el))}else{document.querySelectorAll('.reveal').forEach(el=>el.classList.add('show'))}
+
+// ASTRION visitor notification — sends at most once per browser tab session.
+(async function sendAstrionVisitNotification() {
+  // Prevent refreshes from generating repeated emails in the same tab session.
+  try {
+    if (sessionStorage.getItem('astrion_visit_notice_sent') === '1') return;
+    sessionStorage.setItem('astrion_visit_notice_sent', '1');
+  } catch (error) {
+    // Continue if browser storage is unavailable.
+  }
+
+  const ua = navigator.userAgent || '';
+  const device = /iPad|Tablet/i.test(ua) ? 'Tablet'
+    : /Mobi|Android|iPhone|iPod/i.test(ua) ? 'Mobile'
+    : 'Desktop';
+
+  let browser = 'Unknown';
+  if (/Edg\//i.test(ua)) browser = 'Edge';
+  else if (/Firefox\//i.test(ua)) browser = 'Firefox';
+  else if (/Chrome\//i.test(ua)) browser = 'Chrome';
+  else if (/Safari\//i.test(ua)) browser = 'Safari';
+
+  emailjs.init({
+    publicKey: '7iUQPK_lX8PpREEOr'
+  });
+
+  const visitorData = {
+    page: window.location.href,
+    visit_time: new Date().toLocaleString(),
+    device: device,
+    browser: browser,
+    referrer: document.referrer || 'Direct visit',
+    city: 'Unavailable',
+    region: 'Unavailable',
+    country: 'Unavailable'
+  };
+
+  // Approximate location from public IP only; this does not request GPS or an exact address.
+  try {
+    const locationResponse = await fetch('https://ipapi.co/json/');
+    if (locationResponse.ok) {
+      const locationData = await locationResponse.json();
+      visitorData.city = locationData.city || 'Unavailable';
+      visitorData.region = locationData.region || 'Unavailable';
+      visitorData.country = locationData.country_name || 'Unavailable';
+    }
+  } catch (locationError) {
+    console.warn('ASTRION approximate location lookup failed:', locationError);
+  }
+
+  emailjs.send('service_m709kk9', 'template_6yiy54c', visitorData).then(function () {
+    console.info('ASTRION visit notification sent.');
+  }).catch(function (error) {
+    console.warn('ASTRION visit notification could not be sent:', error);
+    // Allow a retry after a failed send during this tab session.
+    try { sessionStorage.removeItem('astrion_visit_notice_sent'); } catch (e) {}
+  });
+})();
+
 </script>
 </body></html>
